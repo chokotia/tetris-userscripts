@@ -2,7 +2,7 @@
 // @name         jstris-game-instance-hook
 // @namespace    http://tampermonkey.net/
 // @version      2025-06-30
-// @description  jstris（v1.40.1）において、Gameクラスのインスタンスを外部からアクセスできるようにWindowオブジェクトに登録します。
+// @description  jstris（v1.40.1）において、Gameクラスのインスタンスを外部からアクセスできるようにWindowオブジェクト（window.GameInstance）に登録します。
 // @author       chokotia
 // @match        https://jstris.jezevec10.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=jezevec10.com
