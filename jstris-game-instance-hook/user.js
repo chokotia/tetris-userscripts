@@ -14,18 +14,31 @@
 (function () {
     'use strict';
 
-    // 既存 onload を無効化
-    Object.defineProperty(window, 'onload', {
-        configurable: true,
-        enumerable: true,
-        get: function () {
-            return null;
-        },
-        set: function (fn) {
-            console.log('Tampermonkey: window.onload 無効化');
-        }
-    });
+    function setup() {
+        // 既存 onload を無効化
+        Object.defineProperty(window, 'onload', {
+            configurable: true,
+            enumerable: true,
+            get: function () {
+                return null;
+            },
+            set: function (fn) {
+                console.log('Tampermonkey: window.onload 無効化');
+            }
+        });
 
-    // 自前の onload を使う
-    window.addEventListener('load', MyOnLoad);
+        // 自前の onload を使う
+        window.addEventListener('load', MyOnLoad);
+    }
+
+    function main() {
+        if (typeof window.MyOnLoad !== 'function') {
+            console.log('Tampermonkey: MyOnLoad is not defined, skipping.');
+            return;
+        }
+        setup();
+    }
+
+    main();
+
 })();
