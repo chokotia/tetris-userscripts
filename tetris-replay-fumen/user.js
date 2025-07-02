@@ -5,7 +5,7 @@
 // @description  Convert Tetris board to Fumen on button click with next queue support
 // @match        https://blox.askplays.com/replay/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/chokotia/tetris-replay-fumen/refs/heads/main/lib/fumen.bundle.js
+// @require      https://raw.githubusercontent.com/chokotia/tetris-userscripts/refs/heads/main/tetris-replay-fumen/lib/fumen.bundle.js
 // ==/UserScript==
 
 (function () {
