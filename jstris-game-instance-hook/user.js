@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         jstris-game-instance-hook3
+// @name         jstris-game-instance-hook
 // @namespace    http://tampermonkey.net/
 // @version      1.1
 // @description  jstris（v1.40.1）において、Gameクラスのインスタンスを外部からアクセスできるようにWindowオブジェクト（window.GameInstance）に登録します。
