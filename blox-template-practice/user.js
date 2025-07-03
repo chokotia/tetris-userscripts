@@ -6,10 +6,10 @@
 // @author       author
 // @match        https://blox.askplays.com/map-maker
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
-// @require      (todo: パスを修正)/css/add_styles.js
-// @require      (todo: パスを修正)/lib/utility.js
-// @require      (todo: パスを修正)/lib/exercise_manager.js
-// @require      (todo: パスを修正)/lib/exercise_def.js
+// @require      https://github.com/chokotia/tetris-userscripts/raw/refs/heads/main/blox-template-practice/css/add_styles.js
+// @require      https://github.com/chokotia/tetris-userscripts/raw/refs/heads/main/blox-template-practice/lib/utility.js
+// @require      https://github.com/chokotia/tetris-userscripts/raw/refs/heads/main/blox-template-practice/lib/exercise_manager.js
+// @require      https://github.com/chokotia/tetris-userscripts/raw/refs/heads/main/blox-template-practice/lib/exercise_def.js
 // @grant        none
 // ==/UserScript==
 
