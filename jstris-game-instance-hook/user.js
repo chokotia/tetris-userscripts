@@ -5,6 +5,7 @@
 // @description  jstris（v1.40.1）において、Gameクラスのインスタンスを外部からアクセスできるようにWindowオブジェクト（window.GameInstance）に登録します。
 // @author       chokotia
 // @match        https://jstris.jezevec10.com/*
+// @exclude      https://jstris.jezevec10.com/replay/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=jezevec10.com
 // @grant        none
 // @run-at       document-start

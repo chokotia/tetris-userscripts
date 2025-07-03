@@ -5,6 +5,7 @@
 // @description  Switch between invisible and visible skin with the 't' key
 // @author       You
 // @match        https://jstris.jezevec10.com/*
+// @exclude      https://jstris.jezevec10.com/replay/*
 // @grant        none
 // ==/UserScript==
 
