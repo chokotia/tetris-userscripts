@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         blox Add invisible/no-ghost options
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Add options to the settings panel and handle their interactions
 // @author       author
 // @match        https://blox.askplays.com/map-maker*
@@ -35,6 +35,9 @@
         const modifiedShowFunc = `if (t == true) {return;} ${trim(pieceShowFunc)}`;
         const noGhostShow = new Function(...params, modifiedShowFunc);
 
+        const modifiedShowFunc2 = `if (t !== !1) {return;} ${trim(pieceShowFunc)}`;
+        const noGhostShowPlus = new Function(...params, modifiedShowFunc2);
+
         // 透明モードの処理
         const invisibleShow = function() {
             // 何も表示しない（透明モード）
@@ -45,18 +48,31 @@
         const lastExpandContent = expandContents[expandContents.length - 5];
 
         if (lastExpandContent) {
-            // 初期値を localStorage から取得し、存在しない場合は false に設定
+            // 初期値を localStorage から取得
             const invisibleModeInitial = localStorage.getItem('invisibleMode') === 'true';
-            const ghostPresenceInitial = localStorage.getItem('ghostPresence') === 'true';
+            const pieceDisplayMode = localStorage.getItem('pieceDisplayMode') || 'normal';
 
-            // 新しい HTML コンテンツを作成
+            // 新しい HTML コンテンツを作成（ラジオボタン版）
             const newContent = `
     <div>
         <label for="invisible-mode">Invisible Mode:</label>
         <input id="invisible-mode" class="setting" type="checkbox" data-key="invisibleMode" ${invisibleModeInitial ? 'checked' : ''}>
         <br>
-        <label for="ghost-presence">Ghost Presence:</label>
-        <input id="ghost-presence" class="setting" type="checkbox" data-key="ghostPresence" ${ghostPresenceInitial ? 'checked' : ''}>
+        <fieldset style="margin-top: 10px; border: 1px solid #ccc; padding: 10px;">
+            <legend>Piece Display Mode:</legend>
+            <label style="display: block; margin: 5px 0;">
+                <input type="radio" name="piece-display" value="normal" ${pieceDisplayMode === 'normal' ? 'checked' : ''}>
+                Normal (with ghost)
+            </label>
+            <label style="display: block; margin: 5px 0;">
+                <input type="radio" name="piece-display" value="no-ghost" ${pieceDisplayMode === 'no-ghost' ? 'checked' : ''}>
+                No Ghost
+            </label>
+            <label style="display: block; margin: 5px 0;">
+                <input type="radio" name="piece-display" value="invisible" ${pieceDisplayMode === 'invisible' ? 'checked' : ''}>
+                Invisible
+            </label>
+        </fieldset>
     </div>
 `;
 
@@ -65,11 +81,19 @@
 
             // チェックボックスの変更イベントリスナーを追加
             document.getElementById('invisible-mode').addEventListener('change', handleInvisibleModeChange);
-            document.getElementById('ghost-presence').addEventListener('change', handleGhostPresenceChange);
+
+            // ラジオボタンの変更イベントリスナーを追加
+            document.addEventListener('change', function(event) {
+                if (event.target.name === 'piece-display') {
+                    handlePieceDisplayModeChange(event.target.value);
+                }
+            });
 
             // 初期状態のチェックボックス設定を反映
             handleInvisibleModeChange({ target: document.getElementById('invisible-mode') });
-            handleGhostPresenceChange({ target: document.getElementById('ghost-presence') });
+
+            // 初期状態のラジオボタン設定を反映
+            handlePieceDisplayModeChange(pieceDisplayMode);
         }
 
         /**
@@ -83,13 +107,23 @@
         }
 
         /**
-        * Ghost Presence チェックボックスの状態が変わったときの処理
+        * Piece Display Mode ラジオボタンの状態が変わったときの処理
         */
-        function handleGhostPresenceChange(event) {
-            const isGhostEnabled = event.target.checked;
-            Piece.prototype.show = isGhostEnabled ? originalPieceShow : noGhostShow;
+        function handlePieceDisplayModeChange(mode) {
+            switch (mode) {
+                case 'normal':
+                    Piece.prototype.show = originalPieceShow;
+                    break;
+                case 'no-ghost':
+                    Piece.prototype.show = noGhostShow;
+                    break;
+                case 'invisible':
+                    Piece.prototype.show = noGhostShowPlus;
+                    break;
+            }
+
             // localStorage に設定を保存
-            localStorage.setItem('ghostPresence', isGhostEnabled);
+            localStorage.setItem('pieceDisplayMode', mode);
         }
 
         function hasBlockAbove(x, y) {
@@ -114,11 +148,16 @@
             }
 
             if (event.key === '2') {
-                // goastのチェック状態を反転させる
-                const checkbox = document.getElementById('ghost-presence');
-                if (checkbox) {
-                    checkbox.checked = !checkbox.checked;
-                    checkbox.dispatchEvent(new Event('change'));
+                // piece display modeを順番に切り替える
+                const currentMode = localStorage.getItem('pieceDisplayMode') || 'normal';
+                const modes = ['normal', 'no-ghost', 'invisible'];
+                const currentIndex = modes.indexOf(currentMode);
+                const nextMode = modes[(currentIndex + 1) % modes.length];
+
+                const radioButton = document.querySelector(`input[name="piece-display"][value="${nextMode}"]`);
+                if (radioButton) {
+                    radioButton.checked = true;
+                    handlePieceDisplayModeChange(nextMode);
                 }
             }
 
