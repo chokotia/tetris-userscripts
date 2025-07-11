@@ -1,13 +1,12 @@
 // ==UserScript==
 // @name         blox Add invisible/no-ghost options
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Add options to the settings panel and handle their interactions
+// @version      2.1
+// @description  Add independent options for active mino and ghost mino visibility using pre-defined functions
 // @author       author
 // @match        https://blox.askplays.com/map-maker*
 // @grant        none
 // ==/UserScript==
-
 
 (function() {
     'use strict';
@@ -29,14 +28,25 @@
         // デフォルトの Block.show メソッドを保存
         const originalBlockShow = Block.prototype.show;
 
-        // ゴーストなしモードの処理
+        // 4つの異なるshow関数を事前に用意
         const pieceShowFunc = originalPieceShow.toString();
         const params = getParams(pieceShowFunc);
-        const modifiedShowFunc = `if (t == true) {return;} ${trim(pieceShowFunc)}`;
-        const noGhostShow = new Function(...params, modifiedShowFunc);
+        const originalBody = trim(pieceShowFunc);
 
-        const modifiedShowFunc2 = `if (t !== !1) {return;} ${trim(pieceShowFunc)}`;
-        const noGhostShowPlus = new Function(...params, modifiedShowFunc2);
+        // 1. 現在操作中のミノ：非表示、ゴースト：表示 (t !== !1 && t != true の場合のみ実行)
+        const modifiedShowFunc1 = `if ((t !== !1) && !(t == true)) {return;} ${originalBody}`;
+        const showActiveHiddenGhostVisible = new Function(...params, modifiedShowFunc1);
+
+        // 2. 現在操作中のミノ：表示、ゴースト：非表示 (t == true の場合は非表示)
+        const modifiedShowFunc2 = `if (t == true) {return;} ${originalBody}`;
+        const showActiveVisibleGhostHidden = new Function(...params, modifiedShowFunc2);
+
+        // 3. 現在操作中のミノ：非表示、ゴースト：非表示 (t !== !1 なら全て非表示)
+        const modifiedShowFunc3 = `if (t !== !1) {return;} ${originalBody}`;
+        const showActiveHiddenGhostHidden = new Function(...params, modifiedShowFunc3);
+
+        // 4. 現在操作中のミノ：表示、ゴースト：表示 (オリジナルそのまま)
+        const showActiveVisibleGhostVisible = originalPieceShow;
 
         // 透明モードの処理
         const invisibleShow = function() {
@@ -50,29 +60,23 @@
         if (lastExpandContent) {
             // 初期値を localStorage から取得
             const invisibleModeInitial = localStorage.getItem('invisibleMode') === 'true';
-            const pieceDisplayMode = localStorage.getItem('pieceDisplayMode') || 'normal';
+            const activeMinoVisibleInitial = localStorage.getItem('activeMinoVisible') !== 'false';
+            const ghostMinoVisibleInitial = localStorage.getItem('ghostMinoVisible') !== 'false';
 
-            // 新しい HTML コンテンツを作成（ラジオボタン版）
+            // 新しい HTML コンテンツを作成
             const newContent = `
     <div>
         <label for="invisible-mode">Invisible Mode:</label>
         <input id="invisible-mode" class="setting" type="checkbox" data-key="invisibleMode" ${invisibleModeInitial ? 'checked' : ''}>
         <br>
-        <fieldset style="margin-top: 10px; border: 1px solid #ccc; padding: 10px;">
-            <legend>Piece Display Mode:</legend>
-            <label style="display: block; margin: 5px 0;">
-                <input type="radio" name="piece-display" value="normal" ${pieceDisplayMode === 'normal' ? 'checked' : ''}>
-                Normal (with ghost)
-            </label>
-            <label style="display: block; margin: 5px 0;">
-                <input type="radio" name="piece-display" value="no-ghost" ${pieceDisplayMode === 'no-ghost' ? 'checked' : ''}>
-                No Ghost
-            </label>
-            <label style="display: block; margin: 5px 0;">
-                <input type="radio" name="piece-display" value="invisible" ${pieceDisplayMode === 'invisible' ? 'checked' : ''}>
-                Invisible
-            </label>
-        </fieldset>
+
+        <label for="active-mino-visible">Active Mino Visible:</label>
+        <input id="active-mino-visible" class="setting" type="checkbox" data-key="activeMinoVisible" ${activeMinoVisibleInitial ? 'checked' : ''}>
+        <br>
+
+        <label for="ghost-mino-visible">Gohst Mino Visible:</label>
+        <input id="ghost-mino-visible" class="setting" type="checkbox" data-key="ghostMinoVisible" ${ghostMinoVisibleInitial ? 'checked' : ''}>
+        <br>
     </div>
 `;
 
@@ -81,19 +85,12 @@
 
             // チェックボックスの変更イベントリスナーを追加
             document.getElementById('invisible-mode').addEventListener('change', handleInvisibleModeChange);
-
-            // ラジオボタンの変更イベントリスナーを追加
-            document.addEventListener('change', function(event) {
-                if (event.target.name === 'piece-display') {
-                    handlePieceDisplayModeChange(event.target.value);
-                }
-            });
+            document.getElementById('active-mino-visible').addEventListener('change', handleMinoVisibilityChange);
+            document.getElementById('ghost-mino-visible').addEventListener('change', handleMinoVisibilityChange);
 
             // 初期状態のチェックボックス設定を反映
             handleInvisibleModeChange({ target: document.getElementById('invisible-mode') });
-
-            // 初期状態のラジオボタン設定を反映
-            handlePieceDisplayModeChange(pieceDisplayMode);
+            handleMinoVisibilityChange();
         }
 
         /**
@@ -107,23 +104,30 @@
         }
 
         /**
-        * Piece Display Mode ラジオボタンの状態が変わったときの処理
+        * ミノの表示状態が変わったときの処理
         */
-        function handlePieceDisplayModeChange(mode) {
-            switch (mode) {
-                case 'normal':
-                    Piece.prototype.show = originalPieceShow;
-                    break;
-                case 'no-ghost':
-                    Piece.prototype.show = noGhostShow;
-                    break;
-                case 'invisible':
-                    Piece.prototype.show = noGhostShowPlus;
-                    break;
-            }
+        function handleMinoVisibilityChange() {
+            const activeMinoVisible = document.getElementById('active-mino-visible').checked;
+            const ghostMinoVisible = document.getElementById('ghost-mino-visible').checked;
 
             // localStorage に設定を保存
-            localStorage.setItem('pieceDisplayMode', mode);
+            localStorage.setItem('activeMinoVisible', activeMinoVisible);
+            localStorage.setItem('ghostMinoVisible', ghostMinoVisible);
+
+            // 4つの組み合わせに応じて適切なshow関数を選択
+            if (!activeMinoVisible && ghostMinoVisible) {
+                // 現在操作中のミノ：非表示、ゴースト：表示
+                Piece.prototype.show = showActiveHiddenGhostVisible;
+            } else if (activeMinoVisible && !ghostMinoVisible) {
+                // 現在操作中のミノ：表示、ゴースト：非表示
+                Piece.prototype.show = showActiveVisibleGhostHidden;
+            } else if (!activeMinoVisible && !ghostMinoVisible) {
+                // 現在操作中のミノ：非表示、ゴースト：非表示
+                Piece.prototype.show = showActiveHiddenGhostHidden;
+            } else {
+                // 現在操作中のミノ：表示、ゴースト：表示
+                Piece.prototype.show = showActiveVisibleGhostVisible;
+            }
         }
 
         function hasBlockAbove(x, y) {
@@ -148,16 +152,20 @@
             }
 
             if (event.key === '2') {
-                // piece display modeを順番に切り替える
-                const currentMode = localStorage.getItem('pieceDisplayMode') || 'normal';
-                const modes = ['normal', 'no-ghost', 'invisible'];
-                const currentIndex = modes.indexOf(currentMode);
-                const nextMode = modes[(currentIndex + 1) % modes.length];
+                // active minoの表示状態を反転させる
+                const checkbox = document.getElementById('active-mino-visible');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    handleMinoVisibilityChange();
+                }
+            }
 
-                const radioButton = document.querySelector(`input[name="piece-display"][value="${nextMode}"]`);
-                if (radioButton) {
-                    radioButton.checked = true;
-                    handlePieceDisplayModeChange(nextMode);
+            if (event.key === '3') {
+                // ghost minoの表示状態を反転させる
+                const checkbox = document.getElementById('ghost-mino-visible');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    handleMinoVisibilityChange();
                 }
             }
 
