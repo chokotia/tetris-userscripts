@@ -78,7 +78,8 @@
 
             const pages = [{ field, comment: nextComment }];
             const fumen = tetrisFumen.encoder.encode(pages);
-            return `https://knewjade.github.io/fumen-for-mobile/#?d=${fumen}`;
+            //return `https://knewjade.github.io/fumen-for-mobile/#?d=${fumen}`;
+            return `https://fumen.zui.jp/?${fumen}`;
         }
 
         return {
