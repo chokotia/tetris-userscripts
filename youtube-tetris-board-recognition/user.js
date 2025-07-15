@@ -379,18 +379,6 @@
                 return null;
             }
         }
-
-        // 最小必要票数を設定
-        setMinRequiredVotes(votes) {
-            this.minRequiredVotes = votes;
-        }
-
-        // 色定義を更新
-        updateColorDefinition(minoType, checkFunction) {
-            if (this.tetrisColors[minoType]) {
-                this.tetrisColors[minoType].check = checkFunction;
-            }
-        }
     }
 
     // Fumen変換用のクラス
