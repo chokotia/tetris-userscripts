@@ -26,7 +26,7 @@
             this.frameStartHeight = 0;
             this.initialWidth = width;
             this.initialHeight = height;
-            
+
             this.init();
         }
 
@@ -105,12 +105,12 @@
                 handle.className = `resize-handle ${handleInfo.class}`;
                 Object.assign(handle.style, handleStyle);
                 handle.style.cursor = handleInfo.cursor;
-                
+
                 if (handleInfo.left) handle.style.left = handleInfo.left;
                 if (handleInfo.right) handle.style.right = handleInfo.right;
                 if (handleInfo.top) handle.style.top = handleInfo.top;
                 if (handleInfo.bottom) handle.style.bottom = handleInfo.bottom;
-                
+
                 this.element.appendChild(handle);
             });
         }
@@ -242,44 +242,156 @@
         }
     }
 
-    // メインのアプリケーション
-    let detectionFrame = null;
-
-    // テトリスミノの色定義（新しい判定ロジック）
-    const TETRIS_COLORS = {
-        'GRAY': { // せりあがりブロック（灰色）
-            check: (r, g, b) => {return r > 50 || g > 50 || b > 50;},
-            char: 'X'
-        },
-        'I': { // Iミノ（水色）
-            check: (r, g, b) => {return false;},
-            char: 'I'
-        },
-        'S': { // Sミノ（黄緑色）
-            check: (r, g, b) => {return false;},
-            char: 'S'
-        },
-        'Z': { // Zミノ（赤色）
-            check: (r, g, b) => {return false;},
-            char: 'Z'
-        },
-        'J': { // Jミノ（青色）
-            check: (r, g, b) => {return false;},
-            char: 'J'
-        },
-        'L': { // Lミノ（橙色）
-            check: (r, g, b) => {return false;},
-            char: 'L'
-        },
-        'O': { // Oミノ（黄色）
-            check: (r, g, b) => {return false;},
-            char: 'O'
-        },
-        'T': { // Tミノ（紫色）
-            check: (r, g, b) => {return false;},
-            char: 'T'
+    // TetrisBoardDetectorクラス - テトリス盤面検出処理を分離
+    class TetrisBoardDetector {
+        constructor(minRequiredVotes = 2) {
+            this.minRequiredVotes = minRequiredVotes;
+            this.tetrisColors = {
+                'GRAY': { // せりあがりブロック（灰色）
+                    check: (r, g, b) => {return r > 50 || g > 50 || b > 50;},
+                    char: 'X'
+                },
+                'I': { // Iミノ（水色）
+                    check: (r, g, b) => {return false;},
+                    char: 'I'
+                },
+                'S': { // Sミノ（黄緑色）
+                    check: (r, g, b) => {return false;},
+                    char: 'S'
+                },
+                'Z': { // Zミノ（赤色）
+                    check: (r, g, b) => {return false;},
+                    char: 'Z'
+                },
+                'J': { // Jミノ（青色）
+                    check: (r, g, b) => {return false;},
+                    char: 'J'
+                },
+                'L': { // Lミノ（橙色）
+                    check: (r, g, b) => {return false;},
+                    char: 'L'
+                },
+                'O': { // Oミノ（黄色）
+                    check: (r, g, b) => {return false;},
+                    char: 'O'
+                },
+                'T': { // Tミノ（紫色）
+                    check: (r, g, b) => {return false;},
+                    char: 'T'
+                }
+            };
         }
-    };
+
+        // 色からミノの種類を判定
+        identifyMino(color) {
+            const { r, g, b } = color;
+
+            // 各ミノの判定を順番に実行
+            for (const [minoType, minoData] of Object.entries(this.tetrisColors)) {
+                if (minoData.check(r, g, b)) {
+                    return minoData.char;
+                }
+            }
+
+            return '_'; // 背景
+        }
+
+        // 単一セルの検出処理
+        detectCell(ctx, cellX0, cellY0, cellW, cellH) {
+            const votes = {};
+
+            // 各セルに 3x3 = 9点を配置
+            for (let dy = 1; dy <= 3; dy++) {
+                for (let dx = 1; dx <= 3; dx++) {
+                    const px = cellX0 + (dx / 4) * cellW;
+                    const py = cellY0 + (dy / 4) * cellH;
+                    const imageData = ctx.getImageData(px, py, 1, 1);
+                    const data = imageData.data;
+
+                    const color = { r: data[0], g: data[1], b: data[2], a: data[3] };
+                    const mino = this.identifyMino(color);
+
+                    votes[mino] = (votes[mino] || 0) + 1;
+                }
+            }
+
+            // 最頻値を判定
+            let bestMino = 'X';
+            let bestCount = 0;
+            for (const [mino, count] of Object.entries(votes)) {
+                if (count > bestCount) {
+                    bestMino = mino;
+                    bestCount = count;
+                }
+            }
+
+            // 判定条件：最低 minRequiredVotes 以上なければ背景と見なす
+            if (bestCount < this.minRequiredVotes) {
+                return 'X';
+            } else {
+                return bestMino;
+            }
+        }
+
+        // テトリス盤面全体の検出
+        detectBoard(video, detectionFrame) {
+            if (!video || !detectionFrame) return null;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            try {
+                ctx.drawImage(video, 0, 0);
+
+                const videoRect = video.getBoundingClientRect();
+                const frameRect = detectionFrame.getBoundingRect();
+
+                const scaleX = video.videoWidth / videoRect.width;
+                const scaleY = video.videoHeight / videoRect.height;
+
+                const frameStartX = (frameRect.left - videoRect.left) * scaleX;
+                const frameStartY = (frameRect.top - videoRect.top) * scaleY;
+                const frameWidth = frameRect.width * scaleX;
+                const frameHeight = frameRect.height * scaleY;
+
+                const board = [];
+                for (let row = 0; row < 20; row++) {
+                    const rowData = [];
+                    for (let col = 0; col < 10; col++) {
+                        const cellX0 = frameStartX + col * (frameWidth / 10);
+                        const cellY0 = frameStartY + row * (frameHeight / 20);
+                        const cellW = frameWidth / 10;
+                        const cellH = frameHeight / 20;
+
+                        const cellResult = this.detectCell(ctx, cellX0, cellY0, cellW, cellH);
+                        rowData.push(cellResult);
+                    }
+                    board.push(rowData);
+                }
+
+                return board;
+
+            } catch (error) {
+                console.error('Tetris board detection failed:', error);
+                return null;
+            }
+        }
+
+        // 最小必要票数を設定
+        setMinRequiredVotes(votes) {
+            this.minRequiredVotes = votes;
+        }
+
+        // 色定義を更新
+        updateColorDefinition(minoType, checkFunction) {
+            if (this.tetrisColors[minoType]) {
+                this.tetrisColors[minoType].check = checkFunction;
+            }
+        }
+    }
 
     // Fumen変換用のクラス
     const YouTubeToFumenConverter = (function () {
@@ -312,20 +424,6 @@
         };
     })();
 
-    // 色からミノの種類を判定（新しいロジック）
-    function identifyMino(color) {
-        const { r, g, b } = color;
-
-        // 各ミノの判定を順番に実行
-        for (const [minoType, minoData] of Object.entries(TETRIS_COLORS)) {
-            if (minoData.check(r, g, b)) {
-                return minoData.char;
-            }
-        }
-
-        return '_'; // 背景
-    }
-
     // 検出ボタンを作成
     function createDetectionButton() {
         const button = document.createElement('button');
@@ -345,93 +443,13 @@
         button.style.fontWeight = 'bold';
 
         button.addEventListener('click', () => {
-            const board = detectTetrisBoard();
+            const board = boardDetector.detectBoard(document.querySelector('video'), detectionFrame);
             if (board) {
                 displayTetrisBoard(board);
             }
         });
 
         return button;
-    }
-
-    // N（最小必要票数）を定義
-    const MIN_REQUIRED_VOTES = 2;
-
-    function detectTetrisBoard() {
-        const video = document.querySelector('video');
-        if (!video || !detectionFrame) return null;
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        try {
-            ctx.drawImage(video, 0, 0);
-
-            const videoRect = video.getBoundingClientRect();
-            const frameRect = detectionFrame.getBoundingRect();
-
-            const scaleX = video.videoWidth / videoRect.width;
-            const scaleY = video.videoHeight / videoRect.height;
-
-            const frameStartX = (frameRect.left - videoRect.left) * scaleX;
-            const frameStartY = (frameRect.top - videoRect.top) * scaleY;
-            const frameWidth = frameRect.width * scaleX;
-            const frameHeight = frameRect.height * scaleY;
-
-            const board = [];
-            for (let row = 0; row < 20; row++) {
-                const rowData = [];
-                for (let col = 0; col < 10; col++) {
-                    const cellX0 = frameStartX + col * (frameWidth / 10);
-                    const cellY0 = frameStartY + row * (frameHeight / 20);
-                    const cellW = frameWidth / 10;
-                    const cellH = frameHeight / 20;
-
-                    // 各セルに 3x3 = 9点を配置
-                    const votes = {};
-                    for (let dy = 1; dy <= 3; dy++) {
-                        for (let dx = 1; dx <= 3; dx++) {
-                            const px = cellX0 + (dx / 4) * cellW;
-                            const py = cellY0 + (dy / 4) * cellH;
-                            const imageData = ctx.getImageData(px, py, 1, 1);
-                            const data = imageData.data;
-
-                            const color = { r: data[0], g: data[1], b: data[2], a: data[3] };
-                            const mino = identifyMino(color);
-
-                            votes[mino] = (votes[mino] || 0) + 1;
-                        }
-                    }
-
-                    // 最頻値を判定
-                    let bestMino = 'X';
-                    let bestCount = 0;
-                    for (const [mino, count] of Object.entries(votes)) {
-                        if (count > bestCount) {
-                            bestMino = mino;
-                            bestCount = count;
-                        }
-                    }
-
-                    // 判定条件：最低 MIN_REQUIRED_VOTES 以上なければ背景と見なす
-                    if (bestCount < MIN_REQUIRED_VOTES) {
-                        rowData.push('X');
-                    } else {
-                        rowData.push(bestMino);
-                    }
-                }
-                board.push(rowData);
-            }
-
-            return board;
-
-        } catch (error) {
-            console.error('Tetris board detection failed:', error);
-            return null;
-        }
     }
 
     // テトリス盤面をコンソールに出力
@@ -460,6 +478,11 @@
         }
     }
 
+
+    // メインのアプリケーション
+    let detectionFrame = null;
+    let boardDetector = null;
+
     // 初期化
     function init() {
         const video = document.querySelector('video');
@@ -474,6 +497,8 @@
         // DetectionFrameクラスを使用して矩形フレームを作成
         detectionFrame = new DetectionFrame(200, 400);
         detectionFrame.appendTo(document.body);
+
+        boardDetector = new TetrisBoardDetector();
 
         // 検出ボタンを作成
         const detectButton = createDetectionButton();
