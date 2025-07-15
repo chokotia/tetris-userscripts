@@ -1,8 +1,9 @@
 // ==UserScript==
-// @name         YouTube Tetris Board Recognition
+// @name         YouTube Tetris Color Detector with Fumen Export
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.6
 // @description  Detect Tetris board colors from YouTube video with 10x20 grid analysis and export to Fumen
+// @author       You
 // @match        https://www.youtube.com/watch*
 // @grant        none
 // @require      https://raw.githubusercontent.com/chokotia/tetris-userscripts/refs/heads/main/tetris-replay-fumen/lib/fumen.bundle.js
@@ -12,7 +13,6 @@
     'use strict';
 
     let detectionFrame = null;
-    let isRunning = false;
     let isDragging = false;
     let dragType = null; // 'move', 'resize-tl', 'resize-tr', 'resize-bl', 'resize-br'
     let dragStartX = 0;
@@ -63,7 +63,7 @@
         // YouTubeの検出結果からFumen用の文字列に変換
         function boardToFumenFieldString(board) {
             let result = '';
-            const reversed = [...board].reverse();
+            const reversed = [...board].reverse();  // ← ここで逆順
             for (const row of reversed) {
                 result += row.join('');
             }
@@ -101,6 +101,34 @@
         }
 
         return '_'; // 背景
+    }
+
+    // 検出ボタンを作成
+    function createDetectionButton() {
+        const button = document.createElement('button');
+        button.id = 'tetris-detect-button';
+        button.textContent = 'Detect Tetris';
+        button.style.position = 'fixed';
+        button.style.top = '10px';
+        button.style.right = '10px';
+        button.style.zIndex = '10002';
+        button.style.padding = '10px 20px';
+        button.style.backgroundColor = '#ff0000';
+        button.style.color = 'white';
+        button.style.border = 'none';
+        button.style.borderRadius = '5px';
+        button.style.cursor = 'pointer';
+        button.style.fontSize = '14px';
+        button.style.fontWeight = 'bold';
+
+        button.addEventListener('click', () => {
+            const board = detectTetrisBoard();
+            if (board) {
+                displayTetrisBoard(board);
+            }
+        });
+
+        return button;
     }
 
     // 矩形フレームを作成
@@ -317,7 +345,6 @@
         detectionFrame.style.top = centerY + 'px';
     }
 
-    // ★ detectTetrisBoard を修正して、各セル内に 3x3 の等間隔の点を配置し、最頻ミノを判定
     // N（最小必要票数）を定義
     const MIN_REQUIRED_VOTES = 2;
 
@@ -398,7 +425,6 @@
         }
     }
 
-
     // テトリス盤面をコンソールに出力
     function displayTetrisBoard(board) {
         if (!board) return;
@@ -425,27 +451,6 @@
         }
     }
 
-    // 定期的にテトリス盤面を分析してコンソールに出力
-    function startTetrisDetection() {
-        if (isRunning) return;
-
-        isRunning = true;
-
-        const detectLoop = () => {
-            if (!isRunning) return;
-
-            const board = detectTetrisBoard();
-            if (board) {
-                displayTetrisBoard(board);
-            }
-
-            // 1秒間隔で実行
-            setTimeout(detectLoop, 1000);
-        };
-
-        detectLoop();
-    }
-
     // 初期化
     function init() {
         const video = document.querySelector('video');
@@ -461,6 +466,10 @@
         detectionFrame = createDetectionFrame();
         document.body.appendChild(detectionFrame);
 
+        // 検出ボタンを作成
+        const detectButton = createDetectionButton();
+        document.body.appendChild(detectButton);
+
         // 位置を設定
         positionFrame();
 
@@ -471,11 +480,8 @@
             }
         });
 
-        // テトリス盤面検出開始
-        startTetrisDetection();
-
         console.log('Tetris detector initialized! Drag the red rectangle to move, use corner handles to resize.');
-        console.log('Grid shows 10x20 Tetris board layout.');
+        console.log('Grid shows 10x20 Tetris board layout. Click "Detect Tetris" button to analyze.');
     }
 
     // ページ読み込み後に実行
@@ -487,84 +493,5 @@
         setTimeout(init, 3000);
     }
 
-    // 停止用の関数をグローバルに公開
-    window.stopTetrisDetection = () => {
-        isRunning = false;
-        if (detectionFrame) {
-            detectionFrame.remove();
-            detectionFrame = null;
-        }
-        console.log('Tetris detection stopped.');
-    };
-
-    // 色設定を調整する関数をグローバルに公開（新しいロジック用に更新）
-    window.adjustTetrisColors = (minoType, customCheckFunction) => {
-        if (TETRIS_COLORS[minoType]) {
-            TETRIS_COLORS[minoType].check = customCheckFunction;
-            console.log(`Color check function for ${minoType} updated with custom logic`);
-        }
-    };
-
-    // 手動でFumen URLを生成する関数をグローバルに公開
-    window.exportFumenNow = () => {
-        const board = detectTetrisBoard();
-        if (board) {
-            const fumenUrl = YouTubeToFumenConverter.boardToFumenURL(board);
-            if (fumenUrl) {
-                console.log('🧩 CURRENT FUMEN URL:', fumenUrl);
-                // クリップボードにコピーを試行
-                navigator.clipboard.writeText(fumenUrl).then(() => {
-                    console.log('✅ Fumen URL copied to clipboard!');
-                }).catch((err) => {
-                    console.log('❌ Could not copy to clipboard:', err);
-                });
-            } else {
-                console.log('❌ Fumen URL generation failed');
-            }
-        } else {
-            console.log('❌ Could not detect Tetris board');
-        }
-    };
-
-    // 特定の色の詳細情報を取得する関数をグローバルに公開
-    window.debugColorAt = (x, y) => {
-        const video = document.querySelector('video');
-        if (!video || !detectionFrame) return;
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        try {
-            ctx.drawImage(video, 0, 0);
-
-            // 矩形の位置を計算
-            const videoRect = video.getBoundingClientRect();
-            const frameRect = detectionFrame.getBoundingClientRect();
-            const scaleX = video.videoWidth / videoRect.width;
-            const scaleY = video.videoHeight / videoRect.height;
-
-            const frameStartX = (frameRect.left - videoRect.left) * scaleX;
-            const frameStartY = (frameRect.top - videoRect.top) * scaleY;
-            const frameWidth = frameRect.width * scaleX;
-            const frameHeight = frameRect.height * scaleY;
-
-            const cellX = frameStartX + (x + 0.5) * (frameWidth / 10);
-            const cellY = frameStartY + (y + 0.5) * (frameHeight / 20);
-
-            const imageData = ctx.getImageData(cellX, cellY, 1, 1);
-            const data = imageData.data;
-
-            const color = { r: data[0], g: data[1], b: data[2], a: data[3] };
-            const minoType = identifyMino(color);
-
-            console.log(`Position (${x}, ${y}): RGB(${color.r}, ${color.g}, ${color.b}) -> ${minoType}`);
-        } catch (error) {
-            console.error('Color debug failed:', error);
-        }
-    };
-
-    console.log('YouTube Tetris Color Detector with Fumen Export loaded (Updated Color Logic).');
-    console.log('Commands: stopTetrisDetection(), adjustTetrisColors(minoType, checkFunction), exportFumenNow(), debugColorAt(x, y)');
+    console.log('YouTube Tetris Color Detector with Fumen Export loaded (Button-based Detection).');
 })();
