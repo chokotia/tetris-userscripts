@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         tetris-replay-fumen
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Convert Tetris board to Fumen on button click with next queue support
 // @match        https://blox.askplays.com/replay/*
 // @grant        none
@@ -20,6 +20,7 @@
             purple: 'T',
             teal: 'I',
             yellow: 'O',
+            garbage: 'X',
             null: null,
         };
 
